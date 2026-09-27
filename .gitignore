@@ -1,0 +1,31 @@
+# Entorno de desarrollo
+bin/
+obj/
+.vs/
+.vscode/
+.idea/
+
+# Archivos generados por la compilacion
+*.user
+*.suo
+
+# Almacenamiento local de archivos (backend local)
+.storage/
+
+# Secretos. Este archivo no se sube nunca; ver appsettings.example.json
+appsettings.Local.json
+.env
+.env.local
+secrets.json
+
+# Registros y volcados
+*.log
+*.binlog
+
+# Datos de muestra para las capturas del manual
+.help-samples/
+
+# Sistema
+Thumbs.db
+.DS_Store
+desktop.ini

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+
+    <!--
+      El nombre del proyecto y de los ficheros va en minusculas con guion bajo,
+      igual que los otros repositorios (gestor_archivos_pg, gestor_archivos).
+      El namespace del codigo, en cambio, va en PascalCase, que es la convencion
+      de C#: minusculas en un namespace obligan a escribir using en minusculas
+      y se leen mal.
+    -->
+    <RootNamespace>GestorArchivosBlzpg</RootNamespace>
+    <AssemblyName>gestor_archivos_blzpg</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.23.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\gestor_archivos_blzpg.Client\gestor_archivos_blzpg.Client.csproj" />
+    <ProjectReference Include="..\GestorArchivosBlzpg.Comun\GestorArchivosBlzpg.Comun.csproj" />
+  </ItemGroup>
+
+</Project>
