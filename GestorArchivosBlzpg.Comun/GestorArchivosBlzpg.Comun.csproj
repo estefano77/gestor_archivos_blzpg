@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -6,5 +6,23 @@
     <Nullable>enable</Nullable>
     <RootNamespace>GestorArchivosBlzpg.Comun</RootNamespace>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Este proyecto lo referencian los dos: el servidor, y el cliente WebAssembly.
+
+      Por eso no puede usar FrameworkReference a Microsoft.AspNetCore.App: ese
+      framework no existe para browser-wasm y el cliente no compila
+      (NETSDK1082). Se usa el paquete de Components, que si se puede consumir
+      desde WebAssembly.
+
+      Hace falta porque los servicios usan NavigationManager e IJSRuntime, que
+      viven en Components. Sin este paquete, separarlos para que los use el
+      navegador obligaria a reescribirlos sin esas dependencias, que son
+      justamente las que hacen falta en el navegador.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.12" />
+  </ItemGroup>
 
 </Project>

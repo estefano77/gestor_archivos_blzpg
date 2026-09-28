@@ -66,3 +66,22 @@ public static class ModosAcceso
         _ => "correo y contrasena, y Google",
     };
 }
+
+/// <summary>
+/// Modo de acceso como servicio inyectable.
+/// </summary>
+/// <remarks>
+/// Va registrado en el contenedor y no como parametro de las rutas. Un enum en la
+/// firma de un handler de Minimal API se interpreta como valor de la cadena de
+/// consulta, no como servicio, y la peticion falla con
+/// <c>Required parameter "ModoAcceso modo" was not provided from query string</c>,
+/// que no dice nada de que el problema sea el modo de acceso.
+/// </remarks>
+public sealed class ModoAccesoActual(ModoAcceso modo)
+{
+    public ModoAcceso Actual => modo;
+
+    public bool PermiteLocal => modo.PermiteLocal();
+
+    public bool PermiteGoogle => modo.PermiteGoogle();
+}

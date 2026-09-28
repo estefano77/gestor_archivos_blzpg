@@ -1,4 +1,32 @@
-﻿<!DOCTYPE html>
+@* App.razor: el documento HTML de la aplicacion.
+
+   <Routes> se monta aqui, en el servidor, y el navegador lo sustituye cuando el
+   runtime arranca. Es lo que hace la plantilla de .NET 10.
+
+   Montarlo en el navegador con RootComponents.Add, en el Program.cs del proyecto
+   cliente, es del modelo standalone y aqui no sirve. Este servidor tiene que
+   montar, porque MapRazorComponents es ademas lo que genera el manifiesto de
+   arranque que le dice al navegador que ensamblados descargar.
+
+   EL MODO DE RENDER ES CONDICIONAL, y esa es la parte importante de este
+   archivo.
+
+   No se puede pasar InteractiveWebAssembly a todo, porque hay paginas que no
+   admiten prerender. El panel es una de ellas: usa servicios que solo existen
+   en el proyecto cliente (ApiArchivos, Sesion, Interop, Tema) y ademas necesita
+   la cookie de sesion, que es httpOnly y en la pasada de prerender no se puede
+   leer. Si el servidor intentara pintarlo, Blazor fallaria al crear el
+   componente con "There is no registered service of type 'Tema'", y la pagina
+   entera responderia 500 sin llegar a verse.
+
+   Por eso hay paginas marcadas con ExcludeFromInteractiveRouting, y por eso el
+   modo se decide aqui mirando si la peticion actual las trae. Sin este
+   condicional, el atributo de la pagina se ignora por completo.
+*@
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@using Microsoft.AspNetCore.Components.Routing
+
+<!DOCTYPE html>
 <html lang="es">
 
 <head>
@@ -6,15 +34,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
     <ResourcePreloader />
-    <link rel="stylesheet" href="@Assets["app.css"]" />
-    <link rel="stylesheet" href="@Assets["gestor_archivos_blzpg.styles.css"]" />
-    <ImportMap />
-    <HeadOutlet @rendermode="InteractiveWebAssembly" />
+    <link rel="stylesheet" href="@Assets["tema.css"]" />
+    <link rel="stylesheet" href="@Assets["componentes.css"]" />
+    <title>CloudVault</title>
+    <HeadOutlet @rendermode="ModoActual" />
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveWebAssembly" />
-    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <Routes @rendermode="ModoActual" />
+    <script src="_framework/blazor.web.js"></script>
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? Contexto { get; set; }
+
+    /// <summary>
+    /// Modo de render de la peticion actual.
+    /// </summary>
+    /// <remarks>
+    /// AceptsInteractiveRouting() devuelve falso justamente para las paginas
+    /// marcadas con ExcludeFromInteractiveRouting, que son las que no admiten
+    /// prerender. Para esas, se pasa null y el servidor no las renderiza: solo
+    /// entrega el documento, y el navegador las monta al arrancar el runtime.
+    ///
+    /// Para el resto de paginas, modo interactivo con WebAssembly y prerender
+    /// activado. La pantalla de acceso se prerenderiza a proposito: no necesita
+    /// sesion, y asi aparece pintada antes de que descargue el runtime, que en
+    /// la primera visita tarda unos segundos.
+    ///
+    /// El script de blazor.web.js va con la ruta SIN hash y no con @Assets. Con
+    /// @Assets, MapStaticAssets lo descarta del HTML por no ver una referencia a
+    /// la version con hash, y el navegador se queda sin el arranque: la pagina
+    /// se sirve y se ve, pero no hay nada que sustituya los marcadores de
+    /// Blazor.
+    /// </remarks>
+    private IComponentRenderMode? ModoActual
+        => Contexto is not null && !Contexto.AcceptsInteractiveRouting()
+            ? null
+            : new InteractiveWebAssemblyRenderMode(prerender: true);
+}

@@ -33,10 +33,10 @@ public static class RutasAuth
     public static async Task<IResult> Registrar(
         Credenciales body,
         AppDbContext db,
-        ModoAcceso modo,
+        ModoAccesoActual modo,
         HttpContext http)
     {
-        if (!modo.PermiteLocal())
+        if (!modo.PermiteLocal)
         {
             return Results.Json(
                 new { message = "El registro esta deshabilitado en esta instalacion." },
@@ -102,10 +102,10 @@ public static class RutasAuth
     public static async Task<IResult> Login(
         Credenciales body,
         AppDbContext db,
-        ModoAcceso modo,
+        ModoAccesoActual modo,
         HttpContext http)
     {
-        if (!modo.PermiteLocal())
+        if (!modo.PermiteLocal)
         {
             return Results.Json(
                 new { message = "El acceso con correo esta deshabilitado en esta instalacion." },

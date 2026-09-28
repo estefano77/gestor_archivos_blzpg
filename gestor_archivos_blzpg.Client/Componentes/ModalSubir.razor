@@ -1,0 +1,167 @@
+@using GestorArchivosBlzpg.Comun
+@inject ApiArchivos Api
+
+@* Modal de subida.
+
+   El selector de archivos se pinta SIEMPRE que se abra el modal. Estaba antes
+   selector no se renderizaba hasta que ya habia un archivo elegido, y no habia
+   selector no se renderizaba hasta que ya habia un archivo elegido, y no habia
+   archivo elegido hasta usar el selector. El sintoma era pulsar "Subir archivo" y
+   que no se abriera nada, porque el modal se renderizaba vacio.
+
+   Ahora el modal aparece con el selector dentro, y los campos de abajo solo
+   cuando ya hay un archivo. *@
+<div class="modal-fondo" @onclick="Cerrar">
+    <div class="modal modal-subida" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+        <h3>Subir archivo</h3>
+
+        @if (Mensaje is not null)
+        {
+            <div class="aviso aviso-@TipoMensaje" role="alert">@Mensaje</div>
+        }
+
+        <InputFile OnChange="ElegirArchivo"
+                   accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.svg,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json"
+                   class="selector" />
+
+        @if (Nombre is not null)
+        {
+            <p class="elegido">
+                <strong>@Nombre</strong>
+                <span>@Formato(Tamano)</span>
+            </p>
+
+            <label class="campo">
+                <span>Carpeta</span>
+                <select @bind="CarpetaElegida">
+                    <option value="">Sin carpeta</option>
+                    @foreach (var c in Carpetas)
+                    {
+                        <option value="@c.Id">@c.Name</option>
+                    }
+                </select>
+            </label>
+
+            <label class="campo">
+                <span>Descripción</span>
+                <input @bind="Descripcion" placeholder="Opcional" />
+            </label>
+
+            <label class="campo">
+                <span>Etiquetas</span>
+                <input @bind="Etiquetas" placeholder="Separadas por comas" />
+            </label>
+        }
+
+        <div class="modal-acciones">
+            <button type="button" class="boton boton-tenue" @onclick="Cerrar" disabled="@Subiendo">
+                Cancelar
+            </button>
+            <button type="button" class="boton boton-primario"
+                    disabled="@(Subiendo || Elegido is null)"
+                    @onclick="Subir">
+                @(Subiendo ? Progresso : "Subir")
+            </button>
+        </div>
+
+        @if (Subiendo)
+        {
+            <div class="progreso" role="progressbar"
+                 aria-valuenow="@Porcentaje" aria-valuemin="0" aria-valuemax="100">
+                <div class="progreso-barra" style="width:@Porcentaje%"></div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback Cerrar { get; set; }
+    [Parameter] public EventCallback Subido { get; set; }
+    [Parameter] public List<CarpetaDto> Carpetas { get; set; } = [];
+
+    private IBrowserFile? Elegido;
+    private string? Nombre;
+    private long Tamano;
+    private string Descripcion = "";
+    private string Etiquetas = "";
+    private Guid? CarpetaElegida;
+
+    private bool Subiendo;
+    private int Porcentaje;
+    private string Progresso = "Subiendo…";
+
+    private string? Mensaje;
+    private string TipoMensaje = "error";
+
+    private const long MaxBytes = 15L * 1024 * 1024;
+
+    private void ElegirArchivo(InputFileChangeEventArgs e)
+    {
+        Mensaje = null;
+
+        // Un solo archivo por vez. El control permite marcar varios, y
+        // aceptarlos mezclaria el estado del formulario con el de cada subida,
+        // que es una forma segura de subir el archivo equivocado en la carpeta
+        // equivocada.
+        var archivo = e.GetMultipleFiles(1).FirstOrDefault();
+        if (archivo is null) return;
+
+        // El limite se comprueba aqui para avisar sin esperar al servidor. La
+        // comprobacion que vale es la del servidor, que se hace igualmente.
+        if (archivo.Size > MaxBytes)
+        {
+            Elegido = null;
+            Nombre = null;
+            Mensaje = $"El archivo pesa {Formato(archivo.Size)} y el máximo es {Formato(MaxBytes)}.";
+            TipoMensaje = "error";
+            return;
+        }
+
+        Elegido = archivo;
+        Nombre = archivo.Name;
+        Tamano = archivo.Size;
+    }
+
+    private async Task Subir()
+    {
+        if (Elegido is null || Subiendo) return;
+
+        Subiendo = true;
+        Mensaje = null;
+        Progresso = "Subiendo…";
+        Porcentaje = 0;
+
+        try
+        {
+            var (ok, mensaje, _) = await Api.Subir(Elegido, CarpetaElegida, Descripcion,Etiquetas);
+            Porcentaje = 100;
+
+            if (ok)
+            {
+                await Subido.InvokeAsync();
+                await Cerrar.InvokeAsync();
+            }
+            else
+            {
+                Mensaje = mensaje;
+                TipoMensaje = "error";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            Mensaje = "Se ha cortado la conexión con el servidor.";
+            TipoMensaje = "error";
+        }
+        finally
+        {
+            Subiendo = false;
+        }
+    }
+
+    private static string Formato(long bytes)
+    {
+        if (bytes >= 1024 * 1024) return $"{bytes / (1024.0 * 1024):0.00} MB";
+        if (bytes >= 1024) return $"{bytes / 1024.0:0.00} KB";
+        return $"{bytes} B";
+    }
+}

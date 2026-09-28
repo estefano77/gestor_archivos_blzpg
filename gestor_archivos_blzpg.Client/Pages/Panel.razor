@@ -1,0 +1,714 @@
+@using Microsoft.AspNetCore.Components.Routing
+
+@* El panel no se prerenderiza en el servidor.
+
+   Con este atributo, el servidor entrega el documento y la navegacion sale del
+   enrutado interactivo, de modo que el panel lo monta entero el navegador.
+
+   Es lo que hace falta aqui, y no por comodidad. El panel usa servicios que
+   solo existen en el proyecto cliente (ApiArchivos, Sesion, Interop, Tema), y
+   ademas necesita la cookie de sesion, que es httpOnly y el servidor no puede
+   leer en la pasada de prerender. Si se intentara renderizarlo ahi, Blazor
+   fallaria al crear el componente con "There is no registered service of type",
+   y la pagina entera responderia 500 sin llegar a pintarse.
+
+   La pantalla de acceso, en cambio, si se prerenderiza: no necesita sesion y
+   asi aparece pintada antes de que descargue el runtime. *@
+@attribute [ExcludeFromInteractiveRouting]
+
+@page "/"
+
+<PageTitle>CloudVault</PageTitle>
+@inject ApiArchivos Api
+@inject Sesion Sesion
+@inject NavigationManager Nav
+@inject Interop Interop
+@inject Tema Tema
+
+
+<div class="panel">
+    @if (Cargando)
+    {
+        <div class="cargando" role="status">
+            <span class="girador grande" aria-hidden="true"></span>
+            <p>Cargando tu espacio…</p>
+        </div>
+    }
+    else
+    {
+        <header class="barra">
+            <div class="marca">
+                <div class="logo" aria-hidden="true">CV</div>
+                <div>
+                    <span class="marca-nombre">CloudVault</span>
+                    <span class="insignia">POSTGRESQL</span>
+                </div>
+            </div>
+
+            <div class="barra-busqueda">
+                <input type="search"
+                       placeholder="Buscar por nombre, descripción o etiqueta…"
+                       value="@Busqueda"
+                       @oninput="AlBuscar"
+                       aria-label="Buscar archivos" />
+            </div>
+
+            <div class="barra-derecha">
+                <button type="button" class="boton boton-tenue boton-tema"
+                        @onclick="AlternarTema"
+                        title="@(TemaOscuro ? "Cambiar a tema claro" : "Cambiar a tema oscuro")"
+                        aria-label="Cambiar tema">
+                    @(TemaOscuro ? "☀" : "☾")
+                </button>
+                <a class="boton boton-tenue" href="/help" target="_top">Manual</a>
+                <span class="usuario" title="@Sesion.Usuario?.Email">
+                    <span class="avatar" style="background:@Sesion.Usuario?.AvatarColor">
+                        @Iniciales
+                    </span>
+                    <span class="usuario-nombre">@Sesion.Usuario?.Name</span>
+                </span>
+                <button type="button" class="boton boton-tenue" @onclick="Salir">Salir</button>
+            </div>
+        </header>
+
+        @if (Mensaje is not null)
+        {
+            <div class="aviso aviso-@TipoMensaje" role="status">
+                <span>@Mensaje</span>
+                <button type="button" class="cerrar" @onclick="() => Mensaje = null"
+                        aria-label="Cerrar aviso">×</button>
+            </div>
+        }
+
+        <main class="contenido">
+            <section class="resumen glass-panel" aria-label="Resumen de almacenamiento">
+                <div class="resumen-cabecera">
+                    <h2>Resumen de Almacenamiento</h2>
+                    <span class="resumen-sub">Archivos protegidos en tu almacenamiento privado</span>
+                </div>
+
+                @if (Estadisticas is not null)
+                {
+                    <div class="barra-espacio">
+                        @foreach (var cat in PorCategoria)
+                        {
+                            <div class="barra-parte cat-@cat.Categoria"
+                                 style="width:@Ancho(cat.Bytes)"
+                                 title="@NombreLegible(cat.Categoria): @Formato(cat.Bytes)"></div>
+                        }
+                    </div>
+
+                    <div class="leyenda">
+                        @foreach (var cat in PorCategoria)
+                        {
+                            <span class="leyenda-item">
+                                <span class="leyenda-punto cat-@cat.Categoria"></span>
+                                @NombreLegible(cat.Categoria) · @Formato(cat.Bytes)
+                            </span>
+                        }
+                    </div>
+
+                    <div class="resumen-cifras">
+                        <strong>@Formato(Estadisticas.TotalBytes)</strong>
+                        <span>/ @Formato(Estadisticas.QuotaBytes)</span>
+                        @if (Quedan is { } q)
+                        {
+                            <span class="@ClaseAviso">te quedan @Formato(q)</span>
+                        }
+                    </div>
+
+                    <div class="resumen-pie">
+                        <span>@Estadisticas.TotalFiles @(Estadisticas.TotalFiles == 1 ? "archivo" : "archivos")</span>
+                        <span>@Estadisticas.TotalFolders @(Estadisticas.TotalFolders == 1 ? "carpeta" : "carpetas")</span>
+                        @if (CuotaLlena)
+                        {
+                            <span class="cuota-agotada">Cuota agotada</span>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="seccion">
+                <div class="seccion-cabecera">
+                    <h2>Carpetas</h2>
+                    <button type="button" class="boton boton-primario"
+                            @onclick="() => MostrarFormularioCarpeta = true">
+                        Nueva carpeta
+                    </button>
+                </div>
+
+                @if (Carpetas.Length == 0)
+                {
+                    <p class="vacio">Todavía no has creado ninguna carpeta.</p>
+                }
+                else
+                {
+                    <div class="rejilla-carpetas">
+                        @foreach (var c in Carpetas)
+                        {
+                            <article class="tarjeta-carpeta glass-card @ColorClase(c.Color)">
+                                <button type="button" class="carpeta-abrir"
+                                        @onclick="() => FiltrarPorCarpeta(c)">
+                                    <span class="carpeta-icono" aria-hidden="true">▣</span>
+                                    <span class="carpeta-nombre">@c.Name</span>
+                                    <span class="carpeta-cuenta">
+                                        @c.FileCount @(c.FileCount == 1 ? "archivo" : "archivos")
+                                        · @Formato(c.TotalBytes)
+                                    </span>
+                                </button>
+                                <div class="carpeta-acciones">
+                                    <button type="button" title="Renombrar"
+                                            @onclick="() => Renombrar(c)">✎</button>
+                                    <button type="button" title="Eliminar"
+                                            @onclick="() => EliminarCarpeta(c)">🗑</button>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="seccion">
+                <div class="seccion-cabecera">
+                    <h2>
+                        Archivos
+                        @if (CarpetaFiltro is { } fc)
+                        {
+                            <span class="filtro-activo">
+                                en @fc
+                                <button type="button" @onclick="QuitarFiltro"
+                                        aria-label="Quitar filtro de carpeta">×</button>
+                            </span>
+                        }
+                    </h2>
+
+                    <button type="button" class="boton boton-primario"
+                            disabled="@(CuotaLlena || Subiendo)"
+                            title="@(CuotaLlena ? "No queda espacio" : "Subir un archivo")"
+                            @onclick="() => MostrarSubida = true">
+                        Subir archivo
+                    </button>
+                </div>
+
+                @if (Orden is not null)
+                {
+                    <div class="filtros">
+                        <span>Orden: @Orden · @(Descendente ? "descendente" : "ascendente")</span>
+                        <button type="button" class="enlace" @onclick="LimpiarOrden">Quitar</button>
+                    </div>
+                }
+
+                @if (Archivos.Length == 0)
+                {
+                    <p class="vacio">
+                        @(string.IsNullOrWhiteSpace(Busqueda)
+                            ? "No hay archivos todavía."
+                            : $"No hay archivos que llamen «{Busqueda}».")
+                    </p>
+                }
+                else
+                {
+                    <div class="rejilla-archivos">
+                        @foreach (var f in Archivos)
+                        {
+                            <article class="tarjeta-archivo glass-card">
+                                <button type="button" class="archivo-cabecera"
+                                        @onclick="() => VerPrevia(f)">
+                                    <span class="archivo-icono cat-@f.Category" aria-hidden="true">
+                                        @Icono(f.Category)
+                                    </span>
+                                    <span class="archivo-nombre">@f.OriginalName</span>
+                                </button>
+
+                                <div class="archivo-pie">
+                                    <span class="archivo-meta">
+                                        @Formato(f.Size)
+                                        @if (!string.IsNullOrEmpty(f.Folder))
+                                        {
+                                            <span> · @f.Folder</span>
+                                        }
+                                    </span>
+
+                                    <div class="archivo-acciones">
+                                        <a href="@Api.UrlDescarga(f.Id)" download
+                                           class="accion" title="Descargar">↓</a>
+                                        <button type="button" class="accion" title="Eliminar"
+                                                @onclick="() => Eliminar(f)">🗑</button>
+                                    </div>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+        </main>
+    }
+</div>
+
+@if (MostrarSubida)
+{
+    <ModalSubir Cerrar="() => MostrarSubida = false"
+                Subido="Recargar"
+                Carpetas="@Carpetas.ToList()" />
+}
+
+@if (MostrarFormularioCarpeta)
+{
+    <div class="modal-fondo" @onclick="() => MostrarFormularioCarpeta = false">
+        <div class="modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+            <h3>@(CarpetaEnEdicion is null ? "Nueva carpeta" : "Renombrar carpeta")</h3>
+
+            <label class="campo">
+                <span>Nombre</span>
+                <input @bind="NombreCarpeta" @bind:event="oninput" maxlength="60" />
+            </label>
+
+            @if (CarpetaEnEdicion is null)
+            {
+                <label class="campo">
+                    <span>Color</span>
+                    <div class="colores">
+                        @foreach (var color in Colores)
+                        {
+                            <button type="button"
+                                    class="color @(color == ColorElegido ? "elegido" : "")"
+                                    style="background:@ColorHex(color)"
+                                    title="@color"
+                                    @onclick="() => ColorElegido = color"></button>
+                        }
+                    </div>
+                </label>
+            }
+
+            <div class="modal-acciones">
+                <button type="button" class="boton boton-tenue" @onclick="CerrarFormulario">Cancelar</button>
+                <button type="button" class="boton boton-primario" disabled="@Ocupado"
+                        @onclick="GuardarCarpeta">
+                    @(Ocupado ? "Guardando…" : "Guardar")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (ArchivoEnPrevia is not null)
+{
+    <ModalPrevia Archivo="ArchivoEnPrevia"
+                 Url="@Api.UrlDescarga(ArchivoEnPrevia.Id)"
+                 Cerrar="() => ArchivoEnPrevia = null" />
+}
+
+
+@code {
+    private ArchivoDto[] Archivos = [];
+    private CarpetaDto[] Carpetas = [];
+    private EstadisticasDto? Estadisticas;
+    private ArchivoDto? ArchivoEnPrevia;
+
+    private bool Cargando = true;
+
+    /// <summary>Tema aplicado, para pintar el boton de alternancia.</summary>
+    /// <summary>Tema aplicado, para pintar el boton de alternancia.</summary>
+    private bool Ocupado;
+    private bool MostrarSubida;
+    private bool MostrarFormularioCarpeta;
+
+    private CarpetaDto? CarpetaEnEdicion;
+    private string NombreCarpeta = "";
+    private string ColorElegido = "indigo";
+
+    private string? Busqueda;
+    private string? Orden;
+    private bool Descendente;
+    private Guid? CarpetaFiltro;
+    private string? CarpetaFiltroNombre;
+
+    private string? Mensaje;
+    private string TipoMensaje = "ok";
+
+    private string[] Colores = ["indigo", "emerald", "amber", "rose", "purple", "sky"];
+
+    private static string[] NombresIcono = ["PDF", "IMG", "W", "X", "P", "?"];
+
+    /// <summary>
+    /// Iniciales del usuario, para el avatar.
+    /// </summary>
+    /// <remarks>
+    /// SeSacan del nombre, no del correo. Con el correo, "ayuda@cloudvault.app"
+    /// daria "AC", que no significa nada para quien lo ve.
+    /// </remarks>
+    private string Iniciales
+    {
+        get
+        {
+            var nombre = Sesion.Usuario?.Name?.Trim();
+            if (string.IsNullOrEmpty(nombre)) return "?";
+
+            var partes = nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (partes.Length == 0) return "?";
+            if (partes.Length == 1)
+            {
+                return partes[0].Length == 1
+                    ? partes[0].ToUpperInvariant()
+                    : partes[0][..2].ToUpperInvariant();
+            }
+
+            return string.Concat(char.ToUpperInvariant(partes[0][0]), char.ToUpperInvariant(partes[1][0]));
+        }
+    }
+
+    /// <summary>
+    /// Si el tema actual es oscuro, para pintar el boton de alternancia.
+    /// </summary>
+    private bool TemaOscuro { get; set; }
+
+    private long? Quedan => Estadisticas is null
+        ? null
+        : Estadisticas.QuotaBytes - Estadisticas.TotalBytes;
+
+    private bool CuotaLlena => Estadisticas is not null
+        && Estadisticas.TotalBytes >= Estadisticas.QuotaBytes;
+
+    private bool Subiendo => false;
+
+    /// <summary>
+    /// Secciones de la barra de espacio, en un orden fijo.
+    /// </summary>
+    /// <remarks>
+    /// El orden es el de <see cref="OrdenCategorias"/> y no el que devuelva la
+    /// base. Si el orden dependiera de como vinieran las filas, la barra daria
+    /// distinto cada vez que se recarga, y eso se lee como que los datos han
+    /// cambiado cuando solo ha cambiado su llegada.
+    /// </remarks>
+    private IEnumerable<(string Categoria, long Bytes)> PorCategoria
+    {
+        get
+        {
+            if (Estadisticas is null) return [];
+
+            var porCategoria = Estadisticas.ByCategory
+                .ToDictionary(c => c.Categoria, c => c.Bytes);
+
+            return OrdenCategorias
+                .Where(porCategoria.ContainsKey)
+                .Select(c => (c, porCategoria[c]));
+        }
+    }
+
+    /// <summary>
+    /// Orden fijo de las categorias, del formato mas comun al mas raro.
+    /// </summary>
+    private static readonly string[] OrdenCategorias =
+        ["pdf", "image", "word", "excel", "powerpoint", "other"];
+
+    /// <summary>Texto del boton que se ve en la leyenda de cada seccion.</summary>
+    private string NombreLegible(string categoria) => categoria switch
+    {
+        "pdf" => "PDF",
+        "image" => "Imagenes",
+        "word" => "Word",
+        "excel" => "Excel",
+        "powerpoint" => "PowerPoint",
+        _ => "Otros",
+    };
+
+    private static string ColorHex(string color) => color switch
+    {
+        "emerald" => "#10b981",
+        "amber" => "#f59e0b",
+        "rose" => "#f43f5e",
+        "purple" => "#a855f7",
+        "sky" => "#0ea5e9",
+        _ => "#6366f1",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Durante el prerender, en el servidor, no se consulta nada.
+        //
+        // El HttpClient del servidor es un stub que apunta a localhost y no se
+        // llama nunca a proposito. Si aqui se intentara, la peticion se haria sin
+        // la cookie de sesion (que es httpOnly y el codigo no puede leer), y
+        // volveria un 401 escrito en el HTML que el navegador no podria
+        // corregir. La sesion se consulta cuando la aplicacion ya corre en el
+        // navegador, que es cuando esa cookie viaja sola.
+        if (!RendererInfo.IsInteractive) return;
+
+        // Todo el arranque va en un try. Sin el, cualquier fallo antes de
+        // Recargar() dejaba Cargando en true y la pagina se quedaba con el
+        // mensaje "Cargando tu espacio…" para siempre, sin error ni salida. Es
+        // un fallo silencioso especialmente molesto, porque el usuario no ve
+        // que pasa ni tiene forma de saber que recargar no lo arregla.
+        try
+        {
+            // El tema se aplica antes de pintar: si se hiciera despues, alguien
+            // con el tema en oscuro veria un parpadeo de tema claro al cargar.
+            TemaOscuro = await Tema.Inicializar() == "oscuro";
+        }
+        catch (Exception)
+        {
+            // El tema es cosmetico. Si falla, la aplicacion sigue con el claro.
+            TemaOscuro = false;
+        }
+
+        try
+        {
+            await Sesion.Consultar();
+        }
+        catch (Exception)
+        {
+            // Sin sesion conocida, se va a la pantalla de acceso. Es lo que
+            // corresponde: si no se puede comprobar, no se assume que hay.
+            Nav.NavigateTo("/auth");
+            return;
+        }
+
+        // Sin sesion, a la pantalla de acceso. No se usa el atributo Authorize
+        // porque ese lo aplica el servidor al enrutar, y en Blazor WebAssembly
+        // daria un 401 en la pagina entera sin llegar a renderizar nada. Aqui la
+        // comprobacion la hace el navegador, que es quien tiene la cookie.
+        if (Sesion.Usuario is null)
+        {
+            Nav.NavigateTo("/auth");
+            return;
+        }
+
+        await Recargar();
+    }
+
+    private async Task Recargar()
+    {
+        Cargando = true;
+        try
+        {
+            // Las tres llamadas se lanzan a la vez y despues se esperan. Cada una
+            // en su propia variable porque devuelven tipos distintos, y un array
+            // de Tasks con tipos heterogeneos no se puede construir.
+            var archivos = Api.Listar(CarpetaFiltro, null, Busqueda, Orden, Descendente);
+            var carpetas = Api.Carpetas();
+            var estadisticas = Api.Estadisticas();
+
+            await Task.WhenAll(archivos, carpetas, estadisticas);
+
+            Archivos = await archivos;
+            Carpetas = await carpetas;
+            Estadisticas = await estadisticas;
+        }
+        catch (HttpRequestException)
+        {
+            Avisar("No se ha podido contactar con el servidor.", "error");
+        }
+        catch (Exception ex)
+        {
+            // Cualquier otro fallo se avisa en lugar de propagarse. Antes solo se
+            // capturaba HttpRequestException, y un cuerpo que no fuera JSON (por
+            // ejemplo un 500 en texto plano) se escapaba: el usuario veia la
+            // pantalla vacia sin saber que habia fallado.
+            Avisar($"No se han podido cargar los archivos: {ex.Message}", "error");
+        }
+        finally
+        {
+            Cargando = false;
+        }
+    }
+
+    private async Task Salir()
+    {
+        await Sesion.Salir();
+    }
+
+    /// <summary>Cambia entre tema claro y oscuro.</summary>
+    private async Task AlternarTema()
+    {
+        await Tema.Alternar();
+        TemaOscuro = Tema.EsOscuro;
+    }
+
+    // --- Búsqueda -----------------------------------------------------------
+
+    private CancellationTokenSource? busquedaCt;
+
+    private async Task AlBuscar(ChangeEventArgs e)
+    {
+        Busqueda = e.Value?.ToString();
+
+        // Un rebote corto: sin el, escribir "contrato" lanza seis peticiones,
+        // una por letra. El token permite cancelar la anterior, que si no
+        // llegaria despues y ensuciaria el resultado.
+        busquedaCt?.Cancel();
+        busquedaCt = new CancellationTokenSource();
+        var ct = busquedaCt.Token;
+
+        try
+        {
+            await Task.Delay(300, ct);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        await Recargar();
+    }
+
+    private void LimpiarOrden()
+    {
+        Orden = null;
+        Descendente = false;
+    }
+
+    private void QuitarFiltro()
+    {
+        CarpetaFiltro = null;
+        CarpetaFiltroNombre = null;
+    }
+
+    private async Task FiltrarPorCarpeta(CarpetaDto c)
+    {
+        // Volver a pulsar la misma carpeta quita el filtro: es lo que se espera
+        // de un boton que queda marcado.
+        if (CarpetaFiltro == c.Id)
+        {
+            QuitarFiltro();
+        }
+        else
+        {
+            CarpetaFiltro = c.Id;
+            CarpetaFiltroNombre = c.Name;
+        }
+
+        await Recargar();
+    }
+
+    // --- Carpetas -----------------------------------------------------------
+
+    private void Renombrar(CarpetaDto c)
+    {
+        CarpetaEnEdicion = c;
+        NombreCarpeta = c.Name;
+        ColorElegido = c.Color;
+        MostrarFormularioCarpeta = true;
+    }
+
+    private void CerrarFormulario()
+    {
+        MostrarFormularioCarpeta = false;
+        CarpetaEnEdicion = null;
+        NombreCarpeta = "";
+    }
+
+    private async Task GuardarCarpeta()
+    {
+        if (string.IsNullOrWhiteSpace(NombreCarpeta))
+        {
+            Avisar("El nombre no puede quedar vacío.", "error");
+            return;
+        }
+
+        Ocupado = true;
+        try
+        {
+            var (ok, mensaje) = CarpetaEnEdicion is null
+                ? await Api.CrearCarpeta(NombreCarpeta, null, ColorElegido)
+                : await Api.RenombrarCarpeta(CarpetaEnEdicion.Id, NombreCarpeta);
+
+            if (ok)
+            {
+                CerrarFormulario();
+                Avisar(mensaje, "ok");
+                await Recargar();
+            }
+            else
+            {
+                Avisar(mensaje, "error");
+            }
+        }
+        finally
+        {
+            Ocupado = false;
+        }
+    }
+
+    private async Task EliminarCarpeta(CarpetaDto c)
+    {
+        var ok = await Interop.Confirmar(
+                        $"¿Eliminar la carpeta «{c.Name}»? Sus {c.FileCount} archivo(s) se quedaran sin carpeta, pero sus binarios se borraran.");
+
+        if (!ok) return;
+
+        var (bien, mensaje) = await Api.EliminarCarpeta(c.Id);
+        Avisar(mensaje, bien ? "ok" : "error");
+
+        if (bien)
+        {
+            if (CarpetaFiltro == c.Id) QuitarFiltro();
+            await Recargar();
+        }
+    }
+
+    // --- Archivos -----------------------------------------------------------
+
+    private void VerPrevia(ArchivoDto f) => ArchivoEnPrevia = f;
+
+    private async Task Eliminar(ArchivoDto f)
+    {
+        var ok = await Interop.Confirmar( $"¿Eliminar «{f.OriginalName}»?");
+        if (!ok) return;
+
+        var (bien, mensaje) = await Api.Eliminar(f.Id);
+        Avisar(mensaje, bien ? "ok" : "error");
+
+        if (bien) await Recargar();
+    }
+
+    private void Avisar(string texto, string tipo)
+    {
+        Mensaje = texto;
+        TipoMensaje = tipo;
+    }
+
+    // --- Formato ------------------------------------------------------------
+
+    private static string Formato(long bytes)
+    {
+        if (bytes >= 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024 * 1024):0.00} GB";
+        if (bytes >= 1024 * 1024) return $"{bytes / (1024.0 * 1024):0.00} MB";
+        if (bytes >= 1024) return $"{bytes / 1024.0:0.00} KB";
+        return $"{bytes} B";
+    }
+
+    private string Ancho(long bytes)
+    {
+        if (Estadisticas is null || Estadisticas.QuotaBytes == 0) return "0%";
+
+        // El porcentaje se mide contra la cuota, no contra el total ocupado. Si
+        // fuera contra el total, con un 10% ocupado la barra se veria casi vacia
+        // y no diria nada de lo cerca que esta el limite, que es justo lo que la
+        // barra esta para enseñar.
+        var tanto = (double)bytes / Estadisticas.QuotaBytes;
+        return $"{Math.Round(Math.Min(tanto, 1) * 100, 2):0.##}%";
+    }
+
+    private string ClaseAviso => Estadisticas is null
+        ? ""
+        : Estadisticas.TotalBytes >= Estadisticas.QuotaBytes ? "aviso-rojo"
+        : Estadisticas.TotalBytes >= Estadisticas.WarnBytes ? "aviso-ambar"
+        : "";
+
+    private static string IconoMayus(string categoria) => categoria.ToLowerInvariant() switch
+    {
+        "pdf" => "PDF",
+        "image" => "IMG",
+        "word" => "W",
+        "excel" => "X",
+        "powerpoint" => "P",
+        _ => "?",
+    };
+
+    private static string Icono(string categoria) => Mayus(categoria);
+
+    private static string Mayus(string s) => s.ToUpperInvariant();
+
+    private static string ColorClase(string color) => $"carpeta-{color}";
+}
+

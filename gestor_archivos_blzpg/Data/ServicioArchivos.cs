@@ -34,14 +34,33 @@ public class ServicioArchivos(AppDbContext db)
     /// </summary>
     public async Task<long> EspacioUsado(Guid userId, CancellationToken ct = default)
     {
-        // Sin archivos, SUM() en SQL devuelve NULL y no 0, de ahi el COALESCE.
-        // En memoria Sum() sobre una coleccion vacia ya daria 0, que es la
-        // diferencia que hace que estos dos metodos parezcan intercambiables
-        // cuando no lo son.
-        return await db.Database
-            .SqlQuery<long>(
-                $"SELECT COALESCE(SUM(size), 0)::bigint FROM files WHERE user_id = {userId}")
-            .FirstOrDefaultAsync(ct);
+        // SQL directo y no LINQ, por una razon concreta: size es bigint y
+        // PostgreSQL devuelve NUMERIC al sumarla, no bigint. EF Core no sabe
+        // mapear un NUMERIC a un long y falla con "no existe la columna s.Value",
+        // que no menciona ni la consulta ni la tabla.
+        //
+        // El COALESCE hace falta porque SUM() sobre cero filas devuelve NULL, y
+        // un null aqui se restaria de la cuota o daria error al convertir.
+        //
+        // Se usa GetDbConnection y no una conexion propia para que la
+        // transaccion de la subida, que pasa por el mismo DbContext, vea
+        // tambien esta consulta. Con una conexion aparte, el FOR UPDATE no la
+        // protegeria y la cuota se comprobaria contra datos sueltos.
+        var conexion = db.Database.GetDbConnection();
+        if (conexion.State != System.Data.ConnectionState.Open)
+        {
+            await conexion.OpenAsync(ct);
+        }
+
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = "SELECT COALESCE(SUM(size), 0)::bigint FROM files WHERE user_id = @userId";
+
+        var parametro = comando.CreateParameter();
+        parametro.ParameterName = "userId";
+        parametro.Value = userId;
+        comando.Parameters.Add(parametro);
+
+        return Convert.ToInt64(await comando.ExecuteScalarAsync(ct));
     }
 
     /// <summary>

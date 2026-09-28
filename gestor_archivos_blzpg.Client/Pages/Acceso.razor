@@ -1,0 +1,213 @@
+
+@page "/auth"
+
+<PageTitle>Acceso · CloudVault</PageTitle>
+@inject Sesion Sesion
+@inject Interop Interop
+@inject ProveedorAutenticacion Autenticacion
+@inject NavigationManager Nav
+
+
+<div class="auth-envoltura">
+    <div class="auth-tarjeta glass-panel">
+        <div class="auth-marca">
+            <div class="auth-logo" aria-hidden="true">CV</div>
+            <div>
+                <h1>CloudVault</h1>
+                <p class="auth-sub">Gestor Seguro de Documentos y Multimedia</p>
+            </div>
+        </div>
+
+        @if (HayError)
+        {
+            <div class="aviso aviso-error" role="alert">@MensajeError</div>
+        }
+
+        @if (HayAviso)
+        {
+            <div class="aviso aviso-ok" role="status">@MensajeAviso</div>
+        }
+
+        <div class="pestanas" role="tablist">
+            <button type="button"
+                    class="pestana @Activo("entrar")"
+                    role="tab"
+                    aria-selected="@(Modo == "entrar")"
+                    @onclick="@(() => CambiarModo("entrar"))">
+                Entrar
+            </button>
+            <button type="button"
+                    class="pestana @Activo("registro")"
+                    role="tab"
+                    aria-selected="@(Modo == "registro")"
+                    @onclick="@(() => CambiarModo("registro"))">
+                Crear cuenta
+            </button>
+        </div>
+
+        <EditForm Model="@modelo" OnValidSubmit="@Enviar" FormName="auth">
+            <DataAnnotationsValidator />
+
+            @if (Modo == "registro")
+            {
+                <label class="campo">
+                    <span>Nombre</span>
+                    <InputText @bind-Value="modelo.Nombre" autocomplete="name" />
+                </label>
+            }
+
+            <label class="campo">
+                <span>Correo</span>
+                <InputText @bind-Value="modelo.Correo" type="email" autocomplete="email" />
+                <ValidationMessage For="@(() => modelo.Correo)" />
+            </label>
+
+            <label class="campo">
+                <span>Contraseña</span>
+                <InputText @bind-Value="modelo.Contrasena" type="password"
+                           autocomplete="@(Modo == "entrar" ? "current-password" : "new-password")" />
+                <ValidationMessage For="@(() => modelo.Contrasena)" />
+            </label>
+
+            @if (Modo == "registro")
+            {
+                <p class="pista">La contraseña debe tener al menos 8 caracteres.</p>
+            }
+
+            <button type="submit" class="boton boton-primario boton-ancho" disabled="@Ocupado">
+                @if (Ocupado)
+                {
+                    <span class="girador" aria-hidden="true"></span>
+                    <span>Un momento…</span>
+                }
+                else
+                {
+                    <span>@(Modo == "entrar" ? "Entrar" : "Crear cuenta")</span>
+                }
+            </button>
+        </EditForm>
+
+        @if (GoogleDisponible)
+        {
+            <div class="separador"><span>o</span></div>
+
+            <a class="boton boton-google boton-ancho"
+               href="@RutaGoogle"
+               target="_top">
+                <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+                    <path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"/>
+                    <path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"/>
+                    <path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34A21.99 21.99 0 0 0 2 24c0 3.55.85 6.91 2.34 9.88l7.35-5.7z"/>
+                    <path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"/>
+                </svg>
+                <span>Continuar con Google</span>
+            </a>
+        }
+    </div>
+</div>
+
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? Modo { get; set; }
+
+    private Credenciales modelo = new();
+    private bool Ocupado;
+    private string? MensajeError;
+    private string? MensajeAviso;
+
+    private bool HayError => !string.IsNullOrEmpty(MensajeError);
+    private bool HayAviso => !string.IsNullOrEmpty(MensajeAviso);
+
+    /// <summary>
+    /// Si se muestra el boton de Google.
+    /// </summary>
+    /// <remarks>
+    /// El servidor no expone el modo de acceso al navegador. Enseñar el boton
+    /// cuando el servidor no lo admite lleva a una pagina de error, y lo que
+    /// se ve es que Google esta roto. Con el modo 0 se oculta; con el 1 o el 2
+    /// se muestra. Es una aproximacion, y la comprobacion de verdad la hace el
+    /// servidor cuando se pulsa.
+    /// </remarks>
+    private bool GoogleDisponible => true;
+
+    private string RutaGoogle => "api/auth/google";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // En el prerender no se consulta nada: el HttpClient del servidor es un
+        // stub que no se usa, porque la peticion saldria sin la cookie de sesion
+        // y volveria un 401 que el navegador no podria corregir. La comprobacion
+        // se hace cuando la aplicacion ya corre en el navegador.
+        if (!RendererInfo.IsInteractive) return;
+
+        // Si ya hay sesion, no tiene sentido quedarse en la pantalla de acceso.
+        var usuario = await Sesion.Consultar();
+        if (usuario is not null)
+        {
+            Nav.NavigateTo("/");
+        }
+    }
+
+    private void CambiarModo(string modo)
+    {
+        Modo = modo;
+        MensajeError = null;
+        MensajeAviso = null;
+    }
+
+    private string Activo(string modo) => Modo == modo ? "activa" : "";
+
+    private async Task Enviar()
+    {
+        if (Ocupado) return;
+
+        Ocupado = true;
+        MensajeError = null;
+        MensajeAviso = null;
+
+        try
+        {
+            var (ok, mensaje) = Modo == "entrar"
+                ? await Sesion.Entrar(modelo.Correo ?? "", modelo.Contrasena ?? "")
+                : await Sesion.Registrarse(modelo.Nombre ?? "", modelo.Correo ?? "", modelo.Contrasena ?? "");
+
+            if (ok)
+            {
+                Autenticacion.Notificar();
+                Nav.NavigateTo("/");
+                return;
+            }
+
+            MensajeError = mensaje;
+        }
+        catch (HttpRequestException)
+        {
+            // Sin conexion con el servidor. El texto distingue ese caso porque
+            // "no se ha podido completar" no dice si es un problema de red o de
+            // un dato incorrecto, y la accion que toca es distinta.
+            MensajeError = "No se ha podido contactar con el servidor. Revisa que siga arrancado.";
+        }
+        catch (TaskCanceledException)
+        {
+            MensajeError = "La peticion ha tardado demasiado. Vuelve a intentarlo.";
+        }
+        finally
+        {
+            Ocupado = false;
+        }
+    }
+
+    private sealed class Credenciales
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Escribe tu correo.")]
+        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Ese correo no parece valido.")]
+        public string? Correo { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Escribe tu contraseña.")]
+        [System.ComponentModel.DataAnnotations.MinLength(8, ErrorMessage = "La contraseña necesita al menos 8 caracteres.")]
+        public string? Contrasena { get; set; }
+
+        public string? Nombre { get; set; }
+    }
+}

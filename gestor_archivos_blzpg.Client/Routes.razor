@@ -1,6 +1,13 @@
-﻿<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+@* Enrutador de la aplicacion.
+
+   AppAssembly es el ensamblado de ESTE proyecto, que es donde estan las paginas.
+   Todo componente con modo WebAssembly tiene que compilarse aqui, en el proyecto
+   cliente: los del proyecto servidor solo se prerenderizan y nunca se
+   descargan al navegador, con lo que el enrutador no los encontraria. *@
+<Router AppAssembly="@typeof(Program).Assembly"
+        NotFoundPage="@typeof(Pages.NotFound)">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
     </Found>
 </Router>

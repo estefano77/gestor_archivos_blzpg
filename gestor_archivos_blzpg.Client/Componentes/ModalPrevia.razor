@@ -1,0 +1,91 @@
+@using GestorArchivosBlzpg.Comun
+
+<div class="modal-fondo" @onclick="Cerrar">
+    <div class="modal modal-previa" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+        <header class="previa-cabecera">
+            <h3>@Archivo.OriginalName</h3>
+            <button type="button" class="cerrar" @onclick="Cerrar" aria-label="Cerrar">&times;</button>
+        </header>
+
+        <div class="previa-cuerpo">
+            @switch (Archivo.Category)
+            {
+                case "pdf":
+                    @* El visor del propio navegador. Como la peticion la emite el
+                       navegador y no el codigo, la cookie de sesion viaja sola y
+                       no hace falta fabricar un token para la URL. *@
+                    <iframe src="@Url" title="@Archivo.OriginalName" class="previa-pdf"></iframe>
+                    break;
+
+                case "image":
+                    <div class="previa-zoom" style="--zoom:@(Zoom / 100.0)">
+                        <img src="@Url" alt="@Archivo.OriginalName" />
+                    </div>
+                    <div class="previa-controles">
+                        <button type="button" @onclick="() => Ajustar(-25)" disabled="@(Zoom <= 50)"
+                                aria-label="Alejar">&minus;</button>
+                        <span>@Zoom %</span>
+                        <button type="button" @onclick="() => Ajustar(25)" disabled="@(Zoom >= 300)"
+                                aria-label="Acercar">+</button>
+                    </div>
+                    break;
+
+                default:
+                    @* Word, Excel y PowerPoint no se ven en el navegador sin una
+                       biblioteca que los convierta, y meter una aqui sumaria
+                       varios megas a la descarga. Se muestran los datos y se
+                       ofrece la descarga. *@
+                    <div class="previa-ficha">
+                        <p class="ficha-tipo">@Etiqueta(Archivo.Category)</p>
+                        <dl>
+                            <dt>Nombre</dt>
+                            <dd>@Archivo.OriginalName</dd>
+                            <dt>Tipo</dt>
+                            <dd>@Archivo.MimeType</dd>
+                            <dt>Tamano</dt>
+                            <dd>@Formato(Archivo.Size)</dd>
+                            @if (!string.IsNullOrEmpty(Archivo.Folder))
+                            {
+                                <dt>Carpeta</dt>
+                                <dd>@Archivo.Folder</dd>
+                            }
+                            <dt>Subido</dt>
+                            <dd>@Archivo.CreatedAt.ToString("d MMM yyyy")</dd>
+                        </dl>
+                        <p class="ficha-nota">
+                            Este formato no se previsualiza aqui. Descargalo y abrilo con su programa.
+                        </p>
+                        <a class="boton boton-primario" href="@Url" download>Descargar</a>
+                    </div>
+                    break;
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public ArchivoDto Archivo { get; set; } = default!;
+    [Parameter] public string Url { get; set; } = "";
+    [Parameter] public EventCallback Cerrar { get; set; }
+
+    private int Zoom = 100;
+
+    private void Ajustar(int delta) => Zoom = Math.Clamp(Zoom + delta, 50, 300);
+
+    private static string Etiqueta(string categoria) => categoria switch
+    {
+        "word" => "Documento de Word",
+        "excel" => "Hoja de calculo de Excel",
+        "powerpoint" => "Presentacion de PowerPoint",
+        "image" => "Imagen",
+        "pdf" => "Documento PDF",
+        _ => "Archivo",
+    };
+
+    private static string Formato(long bytes)
+    {
+        if (bytes >= 1024 * 1024) return $"{bytes / (1024.0 * 1024):0.00} MB";
+        if (bytes >= 1024) return $"{bytes / 1024.0:0.00} KB";
+        return $"{bytes} B";
+    }
+}

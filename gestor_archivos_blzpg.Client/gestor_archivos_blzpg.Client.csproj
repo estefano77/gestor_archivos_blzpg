@@ -9,14 +9,23 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
 
     <!--
-      Nombre del ensamblado en minusculas, como el repositorio, pero namespace
-      del codigo en PascalCase, que es la convencion de C#.
+      El nombre del ensamblado va en PascalCase, como el del proyecto. Probar en
+      minusculas, igual que el repositorio, fue un error: el runtime de Blazor
+      resuelve el ensamblado del cliente por el nombre que declara aqui, y con
+      un nombre en minusculas deja de encontrarlo. El resultado es una pagina
+      que se sirve y se ve correctamente pero que nunca se vuelve interactiva,
+      sin un solo error en la consola del navegador. Es un fallo silencioso y de
+      los que hacen perder mucho tiempo.
+
+      El nombre del REPOSITORIO y de los ficheros va en minusculas con guion
+      bajo, que es lo que se ve en disco. El del ensamblado, en PascalCase, que es
+      la convencion de C#.
     -->
     <RootNamespace>GestorArchivosBlzpg.Client</RootNamespace>
-    <AssemblyName>gestor_archivos_blzpg.Client</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.12" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
   </ItemGroup>
 

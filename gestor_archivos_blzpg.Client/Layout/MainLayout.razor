@@ -1,9 +1,16 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
 @Body
 
 <div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
+    <p>Se ha producido un error sin controlar.</p>
+    <a href="." class="recargar">Recargar</a>
+    <button type="button" class="cerrar" aria-label="Cerrar">&times;</button>
 </div>
+
+@* Este layout no inyecta servicios del cliente a proposito. Se renderiza dos
+   veces: una en el servidor, al prerenderizar, y otra ya en el navegador. En la
+   pasada del servidor los servicios del proyecto WebAssembly (Sesion, ApiArchivos,
+   Interop) no estan registrados, y si este layout los pidiera Blazor fallaria al
+   instanciarlo. La barra de error se oculta desde confirmar.js, que es un
+   fichero estatico y por tanto existe en los dos lados. *@

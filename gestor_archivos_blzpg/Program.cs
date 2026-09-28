@@ -5,6 +5,7 @@ using GestorArchivosBlzpg.Api;
 using GestorArchivosBlzpg.Components;
 using GestorArchivosBlzpg.Config;
 using GestorArchivosBlzpg.Data;
+using GestorArchivosBlzpg.Comun;
 using GestorArchivosBlzpg.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -136,6 +137,7 @@ builder.Services.AddScoped<ServicioArchivos>();
 builder.Services.AddScoped<ServicioCarpetas>();
 builder.Services.AddScoped<ConsultaArchivos>();
 builder.Services.AddSingleton(config);
+builder.Services.AddSingleton(new ModoAccesoActual(modoAcceso));
 
 // El limite de subida se deja un poco por encima del tope por archivo, para que
 // uno justo en el limite llegue entero y con sitio para los campos del
@@ -146,6 +148,37 @@ builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = limiteSubida
 
 builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents();
+
+// Los componentes viven en este proyecto y se renderizan en el servidor, asi que
+// sus servicios se registran aqui. Cuando la aplicacion pasa a WebAssembly, el
+// proyecto cliente tiene los suyos y estos dejan de usarse.
+//
+// El HttpClient del servidor no se usa realmente: solo se declara para que las
+// inyecciones se resuelvan durante el prerender. No se hacen llamadas con el, y
+// a proposito no se apunta a ningun sitio real: si se hiciera, cada pagina
+// pediria al servidor su propia sesion y, sin cookie, lo que volveria seria un
+// 401 escrito en el HTML que el navegador no podria corregir.
+builder.Services.AddScoped(_ => new HttpClient { BaseAddress = new Uri("http://localhost") });
+
+builder.Services.AddScoped<ApiArchivos>();
+builder.Services.AddScoped<Sesion>();
+builder.Services.AddScoped<ProveedorAutenticacion>();
+builder.Services.AddScoped<Interop>();
+
+// Tema. Se registra tambien aqui, aunque el panel no se prerenderice.
+//
+// El motivo es que el servidor puede acabar renderizando un componente de
+// cliente (por ejemplo, si ExcludeFromInteractiveRouting no llega a aplicarse
+// porque Routes compila en el proyecto cliente y el servidor no ve sus
+// metadatos). Cuando eso pasa, Blazor falla al crear el componente con "There
+// is no registered service of type" y la pagina entera responde 500.
+//
+// Registrar el servicio cuesta una linea y evita ese fallo. NO se usa en el
+// servidor: su HttpClient es un stub y cualquier llamada a JavaScript desde la
+// pasada de prerender lanzaria. Por eso los componentes comprueban
+// RendererInfo.IsInteractive antes de usarlo.
+builder.Services.AddScoped<Tema>();
+builder.Services.AddAuthorizationCore();
 
 var app = builder.Build();
 
@@ -164,11 +197,21 @@ app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// La API se registra antes que los componentes, para que /api/... no se
-// interprete como una ruta de pagina.
+// La API se registra antes que nada mas, para que /api/... no se interprete
+// como una pagina.
 app.MapApi();
 
 app.MapStaticAssets();
+
+// App.razor es el componente raiz: entrega el documento HTML y monta Routes.
+// El modo de render, con el prerender desactivado, lo declara el propio App.razor.
+//
+// MapRazorComponents no es solo un punto de entrada de rutas: es tambien lo que
+// genera el manifiesto blazor.boot.json, sin el cual el runtime del navegador no
+// sabe que ensamblados tiene que descargar. Sustituirlo por un
+// MapFallbackToFile deja la pagina servida pero el arranque en silencio: el
+// navegador recibe el documento y se queda en la pantalla de carga, sin un solo
+// error en la consola. Por eso no se cambia por algo que "parece equivalente".
 app.MapRazorComponents<App>()
     .AddInteractiveWebAssemblyRenderMode()
     .AddAdditionalAssemblies(typeof(GestorArchivosBlzpg.Client._Imports).Assembly);

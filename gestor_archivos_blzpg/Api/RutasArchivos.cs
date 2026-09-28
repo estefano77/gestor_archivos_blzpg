@@ -100,15 +100,28 @@ public static class RutasArchivos
         IAlmacen almacen,
         Configuracion config,
         IFormFile? archivo,
-        Guid? folderId,
-        string? description,
-        string? tags)
+        CancellationToken ct)
     {
         if (Respuestas.SinSesion(http.User, out var userId) is { } sin) return sin;
 
-        // Token de cancelacion local. Dentro de las lambdas de las consultas no
-        // se puede escribir http.RequestAborted, porque alli http no existe.
-        var ct = http.RequestAborted;
+        // Los campos de texto de un multipart no se enlazan como parametros
+        // sueltos del handler: llegan en Request.Form, y si se piden como
+        // parametros opcionales llegan vacios sin avisar. Por eso se leen de ahi.
+        // Sin esto, la descripcion y las etiquetas se perdian en silencio y la
+        // subida devolvia 201 como si se hubieran guardado.
+        var formulario = http.Request.HasFormContentType
+            ? await http.Request.ReadFormAsync(ct)
+            : null;
+
+        var descripcion = formulario?["description"].ToString();
+        var etiquetas = formulario?["tags"].ToString();
+        var carpeta = formulario?["folderId"].ToString();
+
+        Guid? folderId = null;
+        if (!string.IsNullOrWhiteSpace(carpeta) && Guid.TryParse(carpeta, out var f))
+        {
+            folderId = f;
+        }
 
         if (archivo is null || archivo.Length == 0)
         {
@@ -155,8 +168,8 @@ public static class RutasArchivos
             Category = Categorias.Deducir(archivo.ContentType, nombre),
             Size = archivo.Length,
             StoragePath = RutasAlmacen.Para(userId, Guid.NewGuid(), nombre),
-            Description = description?.Trim() ?? "",
-            Tags = ParsearEtiquetas(tags),
+            Description = descripcion?.Trim() ?? "",
+            Tags = ParsearEtiquetas(etiquetas),
             FolderId = folderId,
         };
 

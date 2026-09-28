@@ -7,14 +7,16 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
 
     <!--
-      El nombre del proyecto y de los ficheros va en minusculas con guion bajo,
-      igual que los otros repositorios (gestor_archivos_pg, gestor_archivos).
-      El namespace del codigo, en cambio, va en PascalCase, que es la convencion
-      de C#: minusculas en un namespace obligan a escribir using en minusculas
-      y se leen mal.
+      El nombre del ensamblado va en PascalCase, como el del proyecto. Probarlo
+      en minusculas fue un error: el runtime de Blazor resuelve los ensamblados
+      por el nombre declarado aqui, y con un nombre en minusculas deja de
+      encontrar el del cliente. La pagina se sirve y se ve bien, pero nunca se
+      vuelve interactiva, sin un solo error en la consola del navegador.
+
+      El nombre del repositorio y de los ficheros va en minusculas con guion
+      bajo, que es lo que se ve en disco.
     -->
     <RootNamespace>GestorArchivosBlzpg</RootNamespace>
-    <AssemblyName>gestor_archivos_blzpg</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,7 +27,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.23.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.12" />
   </ItemGroup>
 
   <ItemGroup>

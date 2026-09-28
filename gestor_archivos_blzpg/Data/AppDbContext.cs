@@ -39,6 +39,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Role).HasColumnName("role");
             e.Property(x => x.CreatedAt).HasColumnName("created_at");
             e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+
+            // Las fechas las pone la base de datos, no el codigo. Las columnas
+            // tienen DEFAULT now() y un disparador que actualiza updated_at, y
+            // si EF Core enviara el valor de C# los pisaria.
+            //
+            // Con ValueGeneratedOnAdd, EF omite la columna en el INSERT y deja
+            // que PostgreSQL la rellene. Sin esto, se guardaba -infinity, que es
+            // lo que PostgreSQL entiende por el valor minimo de
+            // DateTimeOffset: el MinValue de C# (0001-01-01) es anterior al
+            // epoch, y en timestamptz no cabe.
+            e.Property(x => x.CreatedAt).ValueGeneratedOnAdd();
+            e.Property(x => x.UpdatedAt).ValueGeneratedOnAddOrUpdate();
         });
 
         b.Entity<Folder>(e =>
@@ -52,6 +64,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Color).HasColumnName("color");
             e.Property(x => x.CreatedAt).HasColumnName("created_at");
             e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+
+            // Las fechas las pone la base de datos. Vease la nota en User: sin
+            // esto se guardaba -infinity, que es lo que PostgreSQL entiende por
+            // el MinValue de DateTimeOffset en C# (0001-01-01).
+            e.Property(x => x.CreatedAt).ValueGeneratedOnAdd();
+            e.Property(x => x.UpdatedAt).ValueGeneratedOnAddOrUpdate();
 
             e.HasOne(x => x.User)
                 .WithMany(x => x.Folders)
@@ -79,6 +97,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
             e.Property(x => x.CreatedAt).HasColumnName("created_at");
             e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+
+            // Las fechas las pone la base de datos. Vease la nota en User.
+            e.Property(x => x.CreatedAt).ValueGeneratedOnAdd();
+            e.Property(x => x.UpdatedAt).ValueGeneratedOnAddOrUpdate();
 
             e.HasOne(x => x.User)
                 .WithMany(x => x.Files)
