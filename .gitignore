@@ -9,6 +9,11 @@ obj/
 *.user
 *.suo
 
+# Salida de dotnet publish. Son binarios generados: ocupan 235 ficheros y no
+# aportan nada al repositorio, porque se reproducen con dotnet publish.
+publicado/
+publish/
+
 # Almacenamiento local de archivos (backend local)
 .storage/
 
