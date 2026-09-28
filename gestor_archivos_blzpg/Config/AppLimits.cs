@@ -27,6 +27,4 @@ public static class AppLimits
 
     public static double QuotaWarnPercent(Configuracion c) => QuotaWarnRatio(c) * 100;
 
-    /// <summary>MB a bytes, para los textos de la interfaz.</summary>
-    public static long Mb(long bytes) => bytes / (1024 * 1024);
 }

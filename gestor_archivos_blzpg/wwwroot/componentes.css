@@ -1002,6 +1002,12 @@
 
 /* --- Aviso de error de Blazor ------------------------------------------- */
 
+/* Las clases dismiss y reload las espera blazor.web.js: son el mecanismo del
+   propio marco para ocultar la barra y recargar la pagina. No se inventan. */
+
+/* display:none por defecto. Blazor la muestra poniendo display:block en linea
+   cuando ocurre un error, y ese estilo en linea gana al de aqui: por eso la
+   disposicion de dentro tiene que funcionar con block y no con flex. */
 #blazor-error-ui {
     position: fixed;
     bottom: 0;
@@ -1013,21 +1019,28 @@
     padding: 0.85rem 1.5rem;
     box-shadow: 0 -2px 10px rgb(15 23 42 / 0.15);
     display: none;
-    align-items: center;
-    gap: 1rem;
     font-size: 0.85rem;
 }
 
-#blazor-error-ui .recargar { color: #fff; font-weight: 600; }
+#blazor-error-ui p {
+    display: inline;
+    margin: 0;
+}
 
-#blazor-error-ui .cerrar {
-    margin-left: auto;
-    background: none;
-    border: none;
+#blazor-error-ui .reload {
+    color: #fff;
+    font-weight: 600;
+    margin-left: 0.75rem;
+}
+
+#blazor-error-ui .dismiss {
+    float: right;
     color: #fff;
     font-size: 1.25rem;
-    cursor: pointer;
     line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    padding: 0 0.25rem;
 }
 
 /* --- Móvil -------------------------------------------------------------- */

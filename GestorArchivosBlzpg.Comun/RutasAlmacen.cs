@@ -18,26 +18,5 @@ public static class RutasAlmacen
     /// </remarks>
     public static string Para(Guid userId, Guid archivoId, string nombreOriginal)
         => $"{userId}/{archivoId:N}/{nombreOriginal}";
-
-    /// <summary>Prefijo de todo lo que pertenece a un usuario.</summary>
-    public static string PrefijoUsuario(Guid userId) => $"{userId}/";
-
-    /// <summary>
-    /// Prefijo de los binarios de una carpeta concreta.
-    /// </summary>
-    /// <remarks>
-    /// Las carpetas son logicas: viven en la tabla <c>folders</c> y no tienen
-    /// carpeta fisica en el almacen. Por eso el prefijo de una carpeta se
-    /// construye con el identificador de la carpeta y no con su nombre, que
-    /// ademas puede cambiar.
-    /// </remarks>
-    public static string PrefijoCarpeta(Guid userId, Guid carpetaId)
-        => $"{userId}/{carpetaId:N}/";
 }
 
-/// <summary>Motivos por los que el servidor devuelve 413.</summary>
-public static class MotivosRechazo
-{
-    public const string Tamano = "tamano";
-    public const string Cuota = "cuota";
-}

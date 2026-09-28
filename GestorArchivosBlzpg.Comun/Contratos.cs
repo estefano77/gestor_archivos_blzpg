@@ -93,6 +93,24 @@ public sealed record ListaCarpetasDto
 public sealed record SesionDto
 {
     [JsonPropertyName("user")] public UsuarioDto? User { get; init; }
+
+    /// <summary>
+    /// Si esta instalacion admite entrar con correo y contrasena.
+    /// </summary>
+    /// <remarks>
+    /// El modo de acceso se decide en el servidor con NEXT_PUBLIC_AUTH_MODE, y
+    /// viaja con la sesion para que la interfaz pueda enseñar solo lo que
+    /// funciona. Sin esto, el boton de Google aparecia siempre y llevaba a una
+    /// ruta que no existe cuando Google esta deshabilitado: el usuario veia que
+    /// "Google esta roto" cuando en realidad estaba apagado a proposito.
+    ///
+    /// La comprobacion de verdad la sigue haciendo el servidor en cada ruta.
+    /// Esto es solo para no ofrecer botones que no llevan a ningun sitio.
+    /// </remarks>
+    [JsonPropertyName("permiteLocal")] public bool PermiteLocal { get; init; } = true;
+
+    /// <summary>Si esta instalacion admite entrar con Google.</summary>
+    [JsonPropertyName("permiteGoogle")] public bool PermiteGoogle { get; init; }
 }
 
 /// <summary>Mensaje simple, que es lo que devuelve casi todo.</summary>

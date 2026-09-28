@@ -28,6 +28,8 @@
             <div class="aviso aviso-ok" role="status">@MensajeAviso</div>
         }
 
+        @if (Sesion.PermiteLocal)
+        {
         <div class="pestanas" role="tablist">
             <button type="button"
                     class="pestana @Activo("entrar")"
@@ -44,7 +46,10 @@
                 Crear cuenta
             </button>
         </div>
+        }
 
+        @if (Sesion.PermiteLocal)
+        {
         <EditForm Model="@modelo" OnValidSubmit="@Enviar" FormName="auth">
             <DataAnnotationsValidator />
 
@@ -86,8 +91,9 @@
                 }
             </button>
         </EditForm>
+        }
 
-        @if (GoogleDisponible)
+        @if (Sesion.PermiteGoogle)
         {
             <div class="separador"><span>o</span></div>
 
@@ -120,18 +126,15 @@
     private bool HayAviso => !string.IsNullOrEmpty(MensajeAviso);
 
     /// <summary>
-    /// Si se muestra el boton de Google.
+    /// Ruta del inicio del flujo de Google.
     /// </summary>
     /// <remarks>
-    /// El servidor no expone el modo de acceso al navegador. Enseñar el boton
-    /// cuando el servidor no lo admite lleva a una pagina de error, y lo que
-    /// se ve es que Google esta roto. Con el modo 0 se oculta; con el 1 o el 2
-    /// se muestra. Es una aproximacion, y la comprobacion de verdad la hace el
-    /// servidor cuando se pulsa.
+    /// Con barra inicial, como el resto de rutas de la aplicacion. Sin ella, la
+    /// direccion se resuelve contra la ruta actual, y funciona de casualidad
+    /// porque la base es "/". En cuanto la aplicacion se publique bajo un
+    /// subdirectorio, se rompe.
     /// </remarks>
-    private bool GoogleDisponible => true;
-
-    private string RutaGoogle => "api/auth/google";
+    private string RutaGoogle => "/api/auth/google";
 
     protected override async Task OnInitializedAsync()
     {

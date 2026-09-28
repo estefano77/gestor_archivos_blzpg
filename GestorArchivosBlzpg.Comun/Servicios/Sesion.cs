@@ -23,7 +23,20 @@ public class Sesion(HttpClient http, NavigationManager nav)
     /// <summary>Usuario con la sesion iniciada, o null.</summary>
     public UsuarioDto? Usuario => _usuario;
 
-    public bool Iniciada => _usuario is not null;
+
+    /// <summary>
+    /// Si la instalacion admite entrar con correo y contrasena.
+    /// </summary>
+    /// <remarks>
+    /// Lo decide el servidor con NEXT_PUBLIC_AUTH_MODE y viaja con la sesion.
+    /// La interfaz lo usa para no ofrecer metodos de acceso que estan apagados:
+    /// un boton que lleva a una ruta inexistente hace parecer que algo esta roto
+    /// cuando lo que pasa es que esta deshabilitado a proposito.
+    /// </remarks>
+    public bool PermiteLocal { get; private set; } = true;
+
+    /// <summary>Si la instalacion admite entrar con Google.</summary>
+    public bool PermiteGoogle { get; private set; }
 
     /// <summary>
     /// Consulta al servidor quien es el usuario de esta sesion.
@@ -42,6 +55,8 @@ public class Sesion(HttpClient http, NavigationManager nav)
             // El 401 no es un error a propagar: significa que no hay sesion, que
             // es el caso normal de quien abre la aplicacion sin entrar.
             _usuario = respuesta?.User;
+            PermiteLocal = respuesta?.PermiteLocal ?? true;
+            PermiteGoogle = respuesta?.PermiteGoogle ?? false;
         }
         catch (HttpRequestException)
         {

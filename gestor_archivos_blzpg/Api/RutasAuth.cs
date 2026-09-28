@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using BCrypt.Net;
+using GestorArchivosBlzpg.Comun;
 using GestorArchivosBlzpg.Config;
 using GestorArchivosBlzpg.Data;
 using Microsoft.AspNetCore.Authentication;
@@ -155,12 +156,22 @@ public static class RutasAuth
     /// Devuelve la sesion actual. Es la primera llamada que hace el cliente, y
     /// sirve para decidir si va a /auth o al panel.
     /// </summary>
-    public static async Task<IResult> Yo(HttpContext http, AppDbContext db)
+    public static async Task<IResult> Yo(HttpContext http, AppDbContext db, ModoAccesoActual modo)
     {
+        // El modo de acceso acompaña siempre a la respuesta, tambien cuando no
+        // hay sesion: la pantalla de acceso lo necesita para saber si enseñar el
+        // boton de Google o el formulario, y es justo el momento en que no hay
+        // usuario que devolver.
+        var sesion = new SesionDto
+        {
+            PermiteLocal = modo.PermiteLocal,
+            PermiteGoogle = modo.PermiteGoogle,
+        };
+
         var id = UsuarioActual.Id(http.User);
         if (id is null)
         {
-            return Results.Json(new { user = (object?)null });
+            return Results.Json(sesion with { User = null });
         }
 
         var usuario = await db.Users.FirstOrDefaultAsync(u => u.Id == id.Value);
@@ -170,10 +181,10 @@ public static class RutasAuth
             // borro la fila desde la base. Se cierra la sesion en vez de dejar
             // al cliente creerse que ha entrado.
             await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            return Results.Json(new { user = (object?)null });
+            return Results.Json(sesion with { User = null });
         }
 
-        return Results.Json(new { user = Dto.Usuario(usuario) });
+        return Results.Json(sesion with { User = Dto.Usuario(usuario) });
     }
 
     /// <summary>

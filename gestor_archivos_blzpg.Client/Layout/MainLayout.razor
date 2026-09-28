@@ -2,15 +2,18 @@
 
 @Body
 
-<div id="blazor-error-ui" data-nosnippet>
-    <p>Se ha producido un error sin controlar.</p>
-    <a href="." class="recargar">Recargar</a>
-    <button type="button" class="cerrar" aria-label="Cerrar">&times;</button>
-</div>
+@* Barra de error de Blazor.
 
-@* Este layout no inyecta servicios del cliente a proposito. Se renderiza dos
-   veces: una en el servidor, al prerenderizar, y otra ya en el navegador. En la
-   pasada del servidor los servicios del proyecto WebAssembly (Sesion, ApiArchivos,
-   Interop) no estan registrados, y si este layout los pidiera Blazor fallaria al
-   instanciarlo. La barra de error se oculta desde confirmar.js, que es un
-   fichero estatico y por tanto existe en los dos lados. *@
+   Las clases dismiss y reload NO son un nombre elegido por nosotros: blazor.web.js
+   escucha los clics en "#blazor-error-ui .dismiss" y la oculta, y usa .reload para
+   recargar. Son el mecanismo que trae el propio marco.
+
+   Antes el boton tenia la clase cerrar y ningun manejador, asi que no hacia nada:
+   se pulsaba y la barra se quedaba. El comentario ademas decia que lo ocultaba
+   confirmar.js, que era falso. Con las clases correctas funciona sin escribir
+   JavaScript. *@
+<div id="blazor-error-ui">
+    <p>Se ha producido un error sin controlar.</p>
+    <a href="." class="reload">Recargar</a>
+    <a class="dismiss" aria-label="Cerrar">&times;</a>
+</div>

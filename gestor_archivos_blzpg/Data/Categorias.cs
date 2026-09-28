@@ -14,8 +14,6 @@ public static class Categorias
     public const string PowerPoint = "powerpoint";
     public const string Other = "other";
 
-    public static readonly string[] Todas =
-        [Pdf, Image, Word, Excel, PowerPoint, Other];
 
     /// <summary>
     /// Deduce la categoria del tipo MIME y de la extension.

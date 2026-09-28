@@ -122,7 +122,6 @@ public class ApiArchivos(HttpClient http)
     /// </remarks>
     public string UrlDescarga(Guid id) => $"/api/files/{id}/download";
 
-    public string UrlPrevia(Guid id) => $"/api/files/{id}/preview";
 
     // --- Carpetas -----------------------------------------------------------
 
