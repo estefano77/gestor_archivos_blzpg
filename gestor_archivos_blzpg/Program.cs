@@ -131,6 +131,34 @@ switch (backend.ToLowerInvariant())
 builder.Services.AddHttpClient("supabase")
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromMinutes(2));
 
+// Google OAuth.
+//
+// La seccion se registra con Configure, no con un AddSingleton de la instancia.
+// ServicioGoogle pide IOptions<OpcionesGoogle>, y si se registra solo la
+// instancia, el contenedor le da un objeto recien construido y vacio: el
+// client_id llega a Google en blanco y el error que se ve es un 400 de Google
+// que no dice que la culpa sea de la inyeccion.
+builder.Services.Configure<OpcionesGoogle>(builder.Configuration.GetSection("Google"));
+
+// La instancia se guarda aparte para el aviso de arranque de mas abajo, que
+// corre antes de que el contenedor exista.
+var opcionesGoogle = builder.Configuration.GetSection("Google").Get<OpcionesGoogle>() ?? new OpcionesGoogle();
+
+builder.Services.AddSingleton<ServicioGoogle>();
+
+builder.Services.AddHttpClient("google")
+    .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(30));
+
+// Aviso al arrancar si el modo pide Google y no hay credenciales. Es un error
+// facil de cometer y su sintoma, sin esto, es un boton que lleva a una pagina de
+// error sin explicar por que.
+if (modoAcceso.PermiteGoogle() && !opcionesGoogle.Configurado)
+{
+    Console.Error.WriteLine(
+        "AVISO: el modo de acceso admite Google, pero faltan GOOGLE_CLIENT_ID o " +
+        "GOOGLE_CLIENT_SECRET. El boton de Google devolvera un error 503.");
+}
+
 // Un almacen por peticion: el de disco no tiene estado y el de Supabase envuelve
 // un HttpClient, que si se compartiera entre peticiones cruzaria cabeceras.
 builder.Services.AddScoped<ServicioArchivos>();

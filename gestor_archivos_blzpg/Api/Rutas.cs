@@ -22,6 +22,14 @@ public static class Rutas
         api.MapPost("/auth/logout", RutasAuth.Logout).DisableAntiforgery();
         api.MapGet("/auth/me", RutasAuth.Yo);
 
+        // Google OAuth. Son dos pasos: el primero lleva a la pantalla de
+        // consentimiento de Google y el segundo recibe la vuelta. No son una
+        // llamada de fetch, sino navegaciones del navegador, y por eso son GET y
+        // no llevan antiforgery: la proteccion aqui es el state que viaja en la
+        // cookie y se comprueba en la vuelta.
+        api.MapGet("/auth/google", RutasGoogle.Iniciar);
+        api.MapGet("/auth/google/callback", RutasGoogle.Callback);
+
         api.MapGet("/files", RutasArchivos.Listar);
         api.MapGet("/files/stats", RutasArchivos.Estadisticas);
 
